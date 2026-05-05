@@ -6,9 +6,13 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"log"
 	"net/http"
+	"strings"
 
 	"suppa-ahg-stack/common-golang/logger"
+
+	"github.com/invopop/ctxi18n"
 )
 
 func EnsureSessionMiddleWare(next http.Handler, sessionName string, secure bool, logger *logger.FileLogger) http.Handler {
@@ -54,6 +58,18 @@ func GenerateSessionID() (string, error) {
 	return base64.RawURLEncoding.EncodeToString(b), nil
 }
 
+func ClearSessionCookie(w http.ResponseWriter, sessionName string, secure bool) {
+	http.SetCookie(w, &http.Cookie{
+		Name:     sessionName,
+		Value:    "",
+		Path:     "/",
+		HttpOnly: true,
+		Secure:   secure,
+		SameSite: http.SameSiteLaxMode,
+		MaxAge:   -1,
+	})
+}
+
 type contextKey struct{}
 
 var NonceKey = contextKey{}
@@ -73,7 +89,7 @@ func CspMiddleware(next http.Handler) http.Handler {
 			"style-src-elem 'self'; " +
 			"style-src-attr 'unsafe-inline'; " +
 			"connect-src 'self'; " +
-			"img-src 'self'; " +
+			"img-src 'self' data:; " +
 			"font-src 'self'; " +
 			"base-uri 'self'; " +
 			"form-action 'self'; " +
@@ -85,6 +101,23 @@ func CspMiddleware(next http.Handler) http.Handler {
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 
 		ctx := context.WithValue(r.Context(), NonceKey, nonce)
+		next.ServeHTTP(w, r.WithContext(ctx))
+	})
+}
+
+func NewLanguageMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		lang := "en" // Default language
+		pathSegments := strings.Split(r.URL.Path, "/")
+		if len(pathSegments) > 1 {
+			lang = pathSegments[1]
+		}
+		ctx, err := ctxi18n.WithLocale(r.Context(), lang)
+		if err != nil {
+			log.Printf("error setting locale: %v", err)
+			http.Error(w, "error setting locale", http.StatusBadRequest)
+			return
+		}
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
