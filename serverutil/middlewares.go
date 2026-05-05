@@ -6,13 +6,9 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
-	"log"
 	"net/http"
-	"strings"
 
 	"suppa-ahg-stack/common-golang/logger"
-
-	"github.com/invopop/ctxi18n"
 )
 
 func EnsureSessionMiddleWare(next http.Handler, sessionName string, secure bool, logger *logger.FileLogger) http.Handler {
@@ -105,19 +101,12 @@ func CspMiddleware(next http.Handler) http.Handler {
 	})
 }
 
-func NewLanguageMiddleware(next http.Handler) http.Handler {
+func LanguageMiddleware(next http.Handler, cookie *http.Cookie) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		lang := "en" // Default language
-		pathSegments := strings.Split(r.URL.Path, "/")
-		if len(pathSegments) > 1 {
-			lang = pathSegments[1]
-		}
-		ctx, err := ctxi18n.WithLocale(r.Context(), lang)
+		cookie, err := r.Cookie(cookie.Name)
 		if err != nil {
-			log.Printf("error setting locale: %v", err)
-			http.Error(w, "error setting locale", http.StatusBadRequest)
-			return
+			http.SetCookie(w, cookie)
 		}
-		next.ServeHTTP(w, r.WithContext(ctx))
+		next.ServeHTTP(w, r)
 	})
 }
