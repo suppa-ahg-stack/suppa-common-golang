@@ -80,7 +80,7 @@ func CspMiddleware(next http.Handler) http.Handler {
 		nonce := base64.StdEncoding.EncodeToString(b)
 
 		csp := "default-src 'self'; " +
-			"script-src 'nonce-" + nonce + "'; " +
+			"script-src 'nonce-" + nonce + "' 'strict-dynamic'; " +
 			"style-src 'self'; " +
 			"style-src-elem 'self'; " +
 			"style-src-attr 'unsafe-inline'; " +
