@@ -100,13 +100,3 @@ func CspMiddleware(next http.Handler) http.Handler {
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
-
-func LanguageMiddleware(next http.Handler, cookie *http.Cookie) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		cookie, err := r.Cookie(cookie.Name)
-		if err != nil {
-			http.SetCookie(w, cookie)
-		}
-		next.ServeHTTP(w, r)
-	})
-}
