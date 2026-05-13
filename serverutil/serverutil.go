@@ -13,6 +13,8 @@ import (
 	"time"
 
 	"suppa-ahg-stack/common-golang/logger"
+
+	"github.com/a-h/templ"
 )
 
 // Options configures the behaviour of ServerUtil.
@@ -40,6 +42,13 @@ type Options struct {
 	WriteTimeout time.Duration
 
 	IdleTimeout time.Duration
+}
+
+type PageRoute struct {
+	ContentFunc    func() templ.Component
+	TargetSelector string
+	RequiresAuth   bool
+	RequiresRoles  []string
 }
 
 // ServerUtil holds the configuration and provides methods to create and run an HTTP server.
@@ -141,4 +150,14 @@ func (su *ServerUtil) RunServer(ctx context.Context, srv *http.Server) error {
 func (su *ServerUtil) logf(format string, v ...any) {
 	msg := fmt.Sprintf(format, v...)
 	su.opts.Logger.Info(msg)
+}
+
+func IsPublicPath(path string, routes map[string]PageRoute, l *logger.FileLogger) (bool, error) {
+	route, ok := routes[path]
+	l.Debug(fmt.Sprintf("checking IsPublicPath with path %s, got result %t", path, ok))
+	if ok {
+		return !route.RequiresAuth, nil
+	}
+
+	return false, fmt.Errorf("Route %s not found", path)
 }
