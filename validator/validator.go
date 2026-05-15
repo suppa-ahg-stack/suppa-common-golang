@@ -8,16 +8,18 @@ import (
 	"strings"
 )
 
-var (
-	specialChars string = "@.#$!%*?&^()/+-"
-	minChars     string = "abcdefghijklmnopqrstuvwxyz"
-	capChars     string = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-	numbers      string = "0123456789"
-)
-
 type ValidationError struct {
 	Field             string
 	InvalidConditions map[string]string
+}
+
+type PasswordRules struct {
+	min                  int
+	max                  int
+	numberOfSpecialChars int
+	numberOfUpperChars   int
+	numberOfLowerChars   int
+	numberOfDigits       int
 }
 
 var keyValidations = []string{
@@ -194,30 +196,44 @@ func (v *Validator[T]) CheckRegex(field reflect.StructField, value reflect.Value
 	}
 }
 
-func (v *Validator[T]) CheckPasswordIsValid() {
+func (v *Validator[T]) CheckPasswordIsValid(rules PasswordRules) {
 	password, ok := any(v.ToValidate).(*string)
 	if !ok {
-		v.AddError("password", "type", "le type de données n'est pas valide pour la vérification du mot de passe")
+		v.AddError("password", "type", "invalid_type")
 		return
 	}
-	res := StringSizeBetween(*password, 8, 32)
-	if !res {
-		v.AddError("password", "size", "Le mot de passe doit être entre 8 et 32 charactères")
+
+	if len((*password)) < 8 {
+		v.AddError("password", "size", fmt.Sprintf("invalid_min_chars_size__%d", rules.min))
 	}
-	res = StringMustContain(*password, specialChars, 1)
-	if !res {
-		v.AddError("password", "specialChar", "Le mot de passe doit contenir au moins un charactère spécial parmi "+specialChars)
+
+	if len((*password)) > 32 {
+		v.AddError("password", "size", fmt.Sprintf("invalid_max_chars_size__%d", rules.max))
 	}
-	res = StringMustContain(*password, capChars, 1)
-	if !res {
-		v.AddError("password", "capChar", "Le mot de passe doit contenir au moins une majuscule")
+
+	hasUpper := regexp.MustCompile(`[A-Z]`).MatchString((*password))
+	hasLower := regexp.MustCompile(`[a-z]`).MatchString((*password))
+	hasDigit := regexp.MustCompile(`\d`).MatchString((*password))
+	hasSpecial := regexp.MustCompile(`[!@#$%^&*()_\-+=\[\]{};:'",.<>/?\\|` + "`" + `~]`).MatchString((*password))
+	validChars := regexp.MustCompile(`^[A-Za-z\d!@#$%^&*()_\-+=\[\]{};:'",.<>/?\\|` + "`" + `~]+$`).MatchString((*password))
+
+	if !hasUpper {
+		v.AddError("password", "upperChar", fmt.Sprintf("capital_letters_required__%d", rules.numberOfUpperChars))
 	}
-	res = StringMustContain(*password, minChars, 1)
-	if !res {
-		v.AddError("password", "minChar", "Le mot de passe doit contenir au moins une minuscule")
+
+	if !hasLower {
+		v.AddError("password", "lowerChar", fmt.Sprintf("lower_letters_required__%d", rules.numberOfLowerChars))
 	}
-	res = StringMustContain(*password, numbers, 1)
-	if !res {
-		v.AddError("password", "number", "Le mot de passe doit contenir au moins un chiffre")
+
+	if !hasDigit {
+		v.AddError("password", "digit", fmt.Sprintf("digit_required__%d", rules.numberOfDigits))
+	}
+
+	if !hasSpecial {
+		v.AddError("password", "spacialChar", fmt.Sprintf("special_chars_required__%d", rules.numberOfSpecialChars))
+	}
+
+	if !validChars {
+		v.AddError("password", "invalidChar", "valid_chars_required")
 	}
 }
