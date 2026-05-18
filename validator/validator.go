@@ -237,3 +237,15 @@ func (v *Validator[T]) CheckPasswordIsValid(rules PasswordRules) {
 		v.AddError("password", "invalidChar", "valid_chars_required")
 	}
 }
+
+func (v *Validator[T]) CheckEmailIsValid() {
+	email, ok := any(v.ToValidate).(*string)
+	if !ok {
+		v.AddError("email", "type", "invalid_type")
+		return
+	}
+	isValid := regexp.MustCompile(`^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$`).MatchString((*email))
+	if !isValid {
+		v.AddError("email", "invalid", "email_invalid")
+	}
+}

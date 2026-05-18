@@ -446,3 +446,41 @@ func TestStringSizeBetween(t *testing.T) {
 		t.Fatal("expected StringSizeBetween to fail (too long)")
 	}
 }
+
+func TestValidateEmail(t *testing.T) {
+	t.Run("valid email 1", func(t *testing.T) {
+		email := "@s.cc"
+		v := &Validator[string]{ToValidate: &email}
+		v.CheckEmailIsValid()
+		if !v.HasErrors() {
+			t.Fatal("expected email @s.cc to fail")
+		}
+	})
+
+	t.Run("valid email 2", func(t *testing.T) {
+		email := "s.cc"
+		v := &Validator[string]{ToValidate: &email}
+		v.CheckEmailIsValid()
+		if !v.HasErrors() {
+			t.Fatal("expected email s.cc to fail")
+		}
+	})
+
+	t.Run("valid email 3", func(t *testing.T) {
+		email := "s.cc@"
+		v := &Validator[string]{ToValidate: &email}
+		v.CheckEmailIsValid()
+		if !v.HasErrors() {
+			t.Fatal("expected email s.cc@ to fail")
+		}
+	})
+
+	t.Run("valid email 3", func(t *testing.T) {
+		email := "s.cc@sd"
+		v := &Validator[string]{ToValidate: &email}
+		v.CheckEmailIsValid()
+		if !v.HasErrors() {
+			t.Fatal("expected email s.cc@sd to fail")
+		}
+	})
+}
