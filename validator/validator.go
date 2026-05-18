@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"reflect"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 )
@@ -23,14 +24,23 @@ type PasswordRules struct {
 }
 
 var keyValidations = []string{
-	"min", "max", "arrayItemSizeMin", "arrayItemSizeMax", "required", "in", "regex",
+	"min",
+	"max",
+	"arrayItemSizeMin",
+	"arrayItemSizeMax",
+	"required",
+	"in",
+	"regex",
+	"password",
+	"email",
 }
 
 // Define a new Validator struct which contains a map of validation error messages
 // for our form fields.
 type Validator[T any] struct {
-	FieldErrors []ValidationError
-	ToValidate  *T
+	FieldErrors   []ValidationError
+	ToValidate    *T
+	PasswordRules PasswordRules
 }
 
 func (v *Validator[T]) Validate() {
@@ -79,6 +89,8 @@ func (v *Validator[T]) Validate() {
 								v.CheckIn(field, values.Field(i), param, key)
 							case "regex":
 								v.CheckRegex(field, values.Field(i), param, key)
+							case "password":
+								v.CheckPasswordIsValid(field, values.Field(i), key)
 							}
 						}
 					}
@@ -106,20 +118,21 @@ func (v *Validator[T]) CheckSize(field reflect.StructField, value reflect.Value,
 
 	hasErrorMin := false
 	hasErrorMax := false
-	if fieldKind == reflect.String {
+	switch fieldKind {
+	case reflect.String:
 		if forMin && len(value.String()) < paramValue {
 			hasErrorMin = true
 		} else if !forMin && len(value.String()) > paramValue {
 			hasErrorMax = true
 		}
-	} else if fieldKind == reflect.Int {
+	case reflect.Int:
 		intVal := int(value.Int())
 		if forMin && intVal < paramValue {
 			hasErrorMin = true
 		} else if !forMin && intVal > paramValue {
 			hasErrorMax = true
 		}
-	} else if fieldKind == reflect.Array || fieldKind == reflect.Slice {
+	case reflect.Array, reflect.Slice:
 		if forMin && value.Len() < paramValue {
 			hasErrorMin = true
 		} else if !forMin && value.Len() > paramValue {
@@ -158,13 +171,7 @@ func (v *Validator[T]) AddError(field string, item string, message string) {
 func (v *Validator[T]) CheckIn(field reflect.StructField, value reflect.Value, param string, checkFor string) {
 	inValues := strings.Split(param, ",")
 
-	found := false
-	for i := range inValues {
-		if inValues[i] == value.String() {
-			found = true
-			break
-		}
-	}
+	found := slices.Contains(inValues, value.String())
 
 	if !found {
 		v.AddError(field.Name, "in", fmt.Sprintf("élément manquant pour %s", checkFor))
@@ -196,56 +203,57 @@ func (v *Validator[T]) CheckRegex(field reflect.StructField, value reflect.Value
 	}
 }
 
-func (v *Validator[T]) CheckPasswordIsValid(rules PasswordRules) {
-	password, ok := any(v.ToValidate).(*string)
-	if !ok {
-		v.AddError("password", "type", "invalid_type")
+func (v *Validator[T]) CheckPasswordIsValid(field reflect.StructField, value reflect.Value, checkFor string) {
+	if field.Type.Kind() != reflect.String {
+		v.AddError(field.Name, "type", fmt.Sprintf("invalid_password_type %v", value))
 		return
 	}
 
-	if len((*password)) < 8 {
-		v.AddError("password", "size", fmt.Sprintf("invalid_min_chars_size__%d", rules.min))
+	password := value.String()
+
+	if len(password) < 8 {
+		v.AddError(field.Name, "size", fmt.Sprintf("invalid_min_chars_size__%d", v.PasswordRules.min))
 	}
 
-	if len((*password)) > 32 {
-		v.AddError("password", "size", fmt.Sprintf("invalid_max_chars_size__%d", rules.max))
+	if len(password) > 32 {
+		v.AddError(field.Name, "size", fmt.Sprintf("invalid_max_chars_size__%d", v.PasswordRules.max))
 	}
 
-	hasUpper := regexp.MustCompile(`[A-Z]`).MatchString((*password))
-	hasLower := regexp.MustCompile(`[a-z]`).MatchString((*password))
-	hasDigit := regexp.MustCompile(`\d`).MatchString((*password))
-	hasSpecial := regexp.MustCompile(`[!@#$%^&*()_\-+=\[\]{};:'",.<>/?\\|` + "`" + `~]`).MatchString((*password))
-	validChars := regexp.MustCompile(`^[A-Za-z\d!@#$%^&*()_\-+=\[\]{};:'",.<>/?\\|` + "`" + `~]+$`).MatchString((*password))
+	hasUpper := regexp.MustCompile(`[A-Z]`).MatchString(password)
+	hasLower := regexp.MustCompile(`[a-z]`).MatchString(password)
+	hasDigit := regexp.MustCompile(`\d`).MatchString(password)
+	hasSpecial := regexp.MustCompile(`[!@#$%^&*()_\-+=\[\]{};:'",.<>/?\\|` + "`" + `~]`).MatchString(password)
+	validChars := regexp.MustCompile(`^[A-Za-z\d!@#$%^&*()_\-+=\[\]{};:'",.<>/?\\|` + "`" + `~]+$`).MatchString(password)
 
 	if !hasUpper {
-		v.AddError("password", "upperChar", fmt.Sprintf("capital_letters_required__%d", rules.numberOfUpperChars))
+		v.AddError(field.Name, "upperChar", fmt.Sprintf("capital_letters_required__%d", v.PasswordRules.numberOfUpperChars))
 	}
 
 	if !hasLower {
-		v.AddError("password", "lowerChar", fmt.Sprintf("lower_letters_required__%d", rules.numberOfLowerChars))
+		v.AddError(field.Name, "lowerChar", fmt.Sprintf("lower_letters_required__%d", v.PasswordRules.numberOfLowerChars))
 	}
 
 	if !hasDigit {
-		v.AddError("password", "digit", fmt.Sprintf("digit_required__%d", rules.numberOfDigits))
+		v.AddError(field.Name, "digit", fmt.Sprintf("digit_required__%d", v.PasswordRules.numberOfDigits))
 	}
 
 	if !hasSpecial {
-		v.AddError("password", "specialChar", fmt.Sprintf("special_chars_required__%d", rules.numberOfSpecialChars))
+		v.AddError(field.Name, "specialChar", fmt.Sprintf("special_chars_required__%d", v.PasswordRules.numberOfSpecialChars))
 	}
 
 	if !validChars {
-		v.AddError("password", "invalidChar", "valid_chars_required")
+		v.AddError(field.Name, "invalidChar", "valid_chars_required")
 	}
 }
 
-func (v *Validator[T]) CheckEmailIsValid() {
-	email, ok := any(v.ToValidate).(*string)
+func (v *Validator[T]) CheckEmailIsValid(field reflect.StructField, value reflect.Value, checkFor string) {
+	email, ok := any(value).(*string)
 	if !ok {
-		v.AddError("email", "type", "invalid_type")
+		v.AddError(field.Name, "type", "invalid_email_type")
 		return
 	}
 	isValid := regexp.MustCompile(`^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$`).MatchString((*email))
 	if !isValid {
-		v.AddError("email", "invalid", "email_invalid")
+		v.AddError(field.Name, "invalid", "email_invalid")
 	}
 }

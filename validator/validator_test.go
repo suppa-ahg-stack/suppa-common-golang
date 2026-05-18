@@ -1,6 +1,7 @@
 package validator
 
 import (
+	"fmt"
 	"reflect"
 	"testing"
 )
@@ -208,95 +209,87 @@ func TestCheckSizeMissingParam(t *testing.T) {
 }
 
 func TestCheckPasswordIsValid(t *testing.T) {
-	t.Run("valid password", func(t *testing.T) {
-		pwd := "Hello1!"
-		v := &Validator[string]{ToValidate: &pwd}
-		v.CheckPasswordIsValid(passwordRules)
-		// Note: 7 chars, should fail size (min 8)
-		if !v.HasErrors() {
-			t.Fatal("expected size error for 7 chars")
-		}
-	})
+	type PasswordStruct struct {
+		Password string `validation:"password"`
+	}
 
-	t.Run("invalid type safe", func(t *testing.T) {
-		type NotString struct{}
-		ns := NotString{}
-		v := &Validator[NotString]{ToValidate: &ns}
-		v.CheckPasswordIsValid(passwordRules)
-		if !v.HasErrors() {
-			t.Fatal("expected type error when ToValidate is not *string")
+	t.Run("valid password", func(t *testing.T) {
+		v := &Validator[PasswordStruct]{
+			ToValidate:    &PasswordStruct{Password: "Hello1!x"},
+			PasswordRules: passwordRules,
 		}
-		found := false
-		for _, e := range v.FieldErrors {
-			if e.Field == "password" {
-				if _, ok := e.InvalidConditions["type"]; ok {
-					found = true
-				}
-			}
-		}
-		if !found {
-			t.Fatal("expected type error")
+		v.Validate()
+		if v.HasErrors() {
+			t.Fatalf("expected no errors for valid password, got: %v", v.FieldErrors)
 		}
 	})
 
 	t.Run("missing lowercase", func(t *testing.T) {
-		pwd := "HELLO1!"
-		v := &Validator[string]{ToValidate: &pwd}
-		v.CheckPasswordIsValid(passwordRules)
+		v := &Validator[PasswordStruct]{
+			ToValidate:    &PasswordStruct{Password: "HELLO1!X"},
+			PasswordRules: passwordRules,
+		}
+		v.Validate()
 		found := false
 		for _, e := range v.FieldErrors {
-			if e.Field == "password" {
+			if e.Field == "Password" {
 				if _, ok := e.InvalidConditions["lowerChar"]; ok {
 					found = true
 				}
 			}
 		}
 		if !found {
-			t.Fatal("expected minChar error for missing lowercase")
+			t.Fatal("expected lowerChar error for missing lowercase")
 		}
 	})
 
 	t.Run("missing uppercase", func(t *testing.T) {
-		pwd := "hello1!"
-		v := &Validator[string]{ToValidate: &pwd}
-		v.CheckPasswordIsValid(passwordRules)
+		v := &Validator[PasswordStruct]{
+			ToValidate:    &PasswordStruct{Password: "hello1!x"},
+			PasswordRules: passwordRules,
+		}
+		v.Validate()
 		found := false
 		for _, e := range v.FieldErrors {
-			if e.Field == "password" {
+			if e.Field == "Password" {
 				if _, ok := e.InvalidConditions["upperChar"]; ok {
 					found = true
 				}
 			}
 		}
 		if !found {
-			t.Fatal("expected capChar error for missing uppercase")
+			t.Fatal("expected upperChar error for missing uppercase")
 		}
 	})
 
 	t.Run("missing number", func(t *testing.T) {
-		pwd := "Hello!!"
-		v := &Validator[string]{ToValidate: &pwd}
-		v.CheckPasswordIsValid(passwordRules)
+		v := &Validator[PasswordStruct]{
+			ToValidate:    &PasswordStruct{Password: "Hello!!x"},
+			PasswordRules: passwordRules,
+		}
+		v.Validate()
 		found := false
 		for _, e := range v.FieldErrors {
-			if e.Field == "password" {
+			if e.Field == "Password" {
 				if _, ok := e.InvalidConditions["digit"]; ok {
 					found = true
 				}
 			}
 		}
 		if !found {
-			t.Fatal("expected number error for missing digit")
+			t.Fatal("expected digit error for missing number")
 		}
 	})
 
 	t.Run("missing special char", func(t *testing.T) {
-		pwd := "Hello11"
-		v := &Validator[string]{ToValidate: &pwd}
-		v.CheckPasswordIsValid(passwordRules)
+		v := &Validator[PasswordStruct]{
+			ToValidate:    &PasswordStruct{Password: "Hello11x"},
+			PasswordRules: passwordRules,
+		}
+		v.Validate()
 		found := false
 		for _, e := range v.FieldErrors {
-			if e.Field == "password" {
+			if e.Field == "Password" {
 				if _, ok := e.InvalidConditions["specialChar"]; ok {
 					found = true
 				}
@@ -308,19 +301,40 @@ func TestCheckPasswordIsValid(t *testing.T) {
 	})
 
 	t.Run("expecting valid chars", func(t *testing.T) {
-		pwd := "sdfsdf€"
-		v := &Validator[string]{ToValidate: &pwd}
-		v.CheckPasswordIsValid(passwordRules)
+		v := &Validator[PasswordStruct]{
+			ToValidate:    &PasswordStruct{Password: "Hello1!€"},
+			PasswordRules: passwordRules,
+		}
+		v.Validate()
 		found := false
 		for _, e := range v.FieldErrors {
-			if e.Field == "password" {
+			if e.Field == "Password" {
 				if _, ok := e.InvalidConditions["invalidChar"]; ok {
 					found = true
 				}
 			}
 		}
 		if !found {
-			t.Fatal("expected invalidChar error for not allowed char")
+			t.Fatal("expected invalidChar error for disallowed character")
+		}
+	})
+
+	t.Run("too short", func(t *testing.T) {
+		v := &Validator[PasswordStruct]{
+			ToValidate:    &PasswordStruct{Password: "Hi1!"},
+			PasswordRules: passwordRules,
+		}
+		v.Validate()
+		found := false
+		for _, e := range v.FieldErrors {
+			if e.Field == "Password" {
+				if _, ok := e.InvalidConditions["size"]; ok {
+					found = true
+				}
+			}
+		}
+		if !found {
+			t.Fatal("expected size error for password under 8 chars")
 		}
 	})
 }
@@ -448,39 +462,22 @@ func TestStringSizeBetween(t *testing.T) {
 }
 
 func TestValidateEmail(t *testing.T) {
-	t.Run("valid email 1", func(t *testing.T) {
-		email := "@s.cc"
-		v := &Validator[string]{ToValidate: &email}
-		v.CheckEmailIsValid()
-		if !v.HasErrors() {
-			t.Fatal("expected email @s.cc to fail")
-		}
-	})
+	emails := []string{"@s.cc", "s.cc", "s.cc@", "s.cc@sd"}
 
-	t.Run("valid email 2", func(t *testing.T) {
-		email := "s.cc"
-		v := &Validator[string]{ToValidate: &email}
-		v.CheckEmailIsValid()
-		if !v.HasErrors() {
-			t.Fatal("expected email s.cc to fail")
-		}
-	})
-
-	t.Run("valid email 3", func(t *testing.T) {
-		email := "s.cc@"
-		v := &Validator[string]{ToValidate: &email}
-		v.CheckEmailIsValid()
-		if !v.HasErrors() {
-			t.Fatal("expected email s.cc@ to fail")
-		}
-	})
-
-	t.Run("valid email 3", func(t *testing.T) {
-		email := "s.cc@sd"
-		v := &Validator[string]{ToValidate: &email}
-		v.CheckEmailIsValid()
-		if !v.HasErrors() {
-			t.Fatal("expected email s.cc@sd to fail")
-		}
-	})
+	for i, v := range emails {
+		t.Run(fmt.Sprintf("valid email %d", i), func(t *testing.T) {
+			type EmailStruct struct {
+				Email string `validation:"email"`
+			}
+			v := &Validator[EmailStruct]{
+				ToValidate: &EmailStruct{Email: v},
+			}
+			v.Validate()
+			for _, e := range v.FieldErrors {
+				if e.Field == "Email" {
+					t.Fatalf("expected email %v to fail: %v", v, e.InvalidConditions)
+				}
+			}
+		})
+	}
 }
