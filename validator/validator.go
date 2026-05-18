@@ -230,7 +230,7 @@ func (v *Validator[T]) CheckPasswordIsValid(rules PasswordRules) {
 	}
 
 	if !hasSpecial {
-		v.AddError("password", "spacialChar", fmt.Sprintf("special_chars_required__%d", rules.numberOfSpecialChars))
+		v.AddError("password", "specialChar", fmt.Sprintf("special_chars_required__%d", rules.numberOfSpecialChars))
 	}
 
 	if !validChars {

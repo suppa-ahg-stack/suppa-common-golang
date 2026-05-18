@@ -12,6 +12,15 @@ type TestStruct struct {
 	Tags     []string `validation:"arrayItemSizeMin:2,arrayItemSizeMax:10"`
 }
 
+var passwordRules = PasswordRules{
+	min:                  8,
+	max:                  32,
+	numberOfSpecialChars: 1,
+	numberOfUpperChars:   1,
+	numberOfLowerChars:   1,
+	numberOfDigits:       1,
+}
+
 func TestValidateRequired(t *testing.T) {
 	t.Run("missing required field", func(t *testing.T) {
 		v := &Validator[TestStruct]{
@@ -202,7 +211,7 @@ func TestCheckPasswordIsValid(t *testing.T) {
 	t.Run("valid password", func(t *testing.T) {
 		pwd := "Hello1!"
 		v := &Validator[string]{ToValidate: &pwd}
-		v.CheckPasswordIsValid()
+		v.CheckPasswordIsValid(passwordRules)
 		// Note: 7 chars, should fail size (min 8)
 		if !v.HasErrors() {
 			t.Fatal("expected size error for 7 chars")
@@ -213,7 +222,7 @@ func TestCheckPasswordIsValid(t *testing.T) {
 		type NotString struct{}
 		ns := NotString{}
 		v := &Validator[NotString]{ToValidate: &ns}
-		v.CheckPasswordIsValid()
+		v.CheckPasswordIsValid(passwordRules)
 		if !v.HasErrors() {
 			t.Fatal("expected type error when ToValidate is not *string")
 		}
@@ -233,11 +242,11 @@ func TestCheckPasswordIsValid(t *testing.T) {
 	t.Run("missing lowercase", func(t *testing.T) {
 		pwd := "HELLO1!"
 		v := &Validator[string]{ToValidate: &pwd}
-		v.CheckPasswordIsValid()
+		v.CheckPasswordIsValid(passwordRules)
 		found := false
 		for _, e := range v.FieldErrors {
 			if e.Field == "password" {
-				if _, ok := e.InvalidConditions["minChar"]; ok {
+				if _, ok := e.InvalidConditions["lowerChar"]; ok {
 					found = true
 				}
 			}
@@ -250,11 +259,11 @@ func TestCheckPasswordIsValid(t *testing.T) {
 	t.Run("missing uppercase", func(t *testing.T) {
 		pwd := "hello1!"
 		v := &Validator[string]{ToValidate: &pwd}
-		v.CheckPasswordIsValid()
+		v.CheckPasswordIsValid(passwordRules)
 		found := false
 		for _, e := range v.FieldErrors {
 			if e.Field == "password" {
-				if _, ok := e.InvalidConditions["capChar"]; ok {
+				if _, ok := e.InvalidConditions["upperChar"]; ok {
 					found = true
 				}
 			}
@@ -267,11 +276,11 @@ func TestCheckPasswordIsValid(t *testing.T) {
 	t.Run("missing number", func(t *testing.T) {
 		pwd := "Hello!!"
 		v := &Validator[string]{ToValidate: &pwd}
-		v.CheckPasswordIsValid()
+		v.CheckPasswordIsValid(passwordRules)
 		found := false
 		for _, e := range v.FieldErrors {
 			if e.Field == "password" {
-				if _, ok := e.InvalidConditions["number"]; ok {
+				if _, ok := e.InvalidConditions["digit"]; ok {
 					found = true
 				}
 			}
@@ -284,7 +293,7 @@ func TestCheckPasswordIsValid(t *testing.T) {
 	t.Run("missing special char", func(t *testing.T) {
 		pwd := "Hello11"
 		v := &Validator[string]{ToValidate: &pwd}
-		v.CheckPasswordIsValid()
+		v.CheckPasswordIsValid(passwordRules)
 		found := false
 		for _, e := range v.FieldErrors {
 			if e.Field == "password" {
@@ -295,6 +304,23 @@ func TestCheckPasswordIsValid(t *testing.T) {
 		}
 		if !found {
 			t.Fatal("expected specialChar error for missing special char")
+		}
+	})
+
+	t.Run("expecting valid chars", func(t *testing.T) {
+		pwd := "sdfsdf€"
+		v := &Validator[string]{ToValidate: &pwd}
+		v.CheckPasswordIsValid(passwordRules)
+		found := false
+		for _, e := range v.FieldErrors {
+			if e.Field == "password" {
+				if _, ok := e.InvalidConditions["invalidChar"]; ok {
+					found = true
+				}
+			}
+		}
+		if !found {
+			t.Fatal("expected invalidChar error for not allowed char")
 		}
 	})
 }
