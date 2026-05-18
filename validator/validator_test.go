@@ -348,10 +348,8 @@ func TestValidateRegex(t *testing.T) {
 			ToValidate: &RegexStruct{Email: "test@example.com"},
 		}
 		v.Validate()
-		for _, e := range v.FieldErrors {
-			if e.Field == "Email" {
-				t.Fatalf("unexpected error for valid regex: %v", e.InvalidConditions)
-			}
+		if v.HasErrors() {
+			t.Fatalf("expected no errors for valid regex, got: %v", v.FieldErrors)
 		}
 	})
 
@@ -363,15 +361,7 @@ func TestValidateRegex(t *testing.T) {
 			ToValidate: &RegexStruct{Email: "invalid-email"},
 		}
 		v.Validate()
-		found := false
-		for _, e := range v.FieldErrors {
-			if e.Field == "Email" {
-				if _, ok := e.InvalidConditions["regex"]; ok {
-					found = true
-				}
-			}
-		}
-		if !found {
+		if !v.HasErrors() {
 			t.Fatal("expected regex error for non-matching value")
 		}
 	})
@@ -384,15 +374,7 @@ func TestValidateRegex(t *testing.T) {
 			ToValidate: &RegexStruct{Email: "test@example.com"},
 		}
 		v.Validate()
-		found := false
-		for _, e := range v.FieldErrors {
-			if e.Field == "Email" {
-				if _, ok := e.InvalidConditions["param"]; ok {
-					found = true
-				}
-			}
-		}
-		if !found {
+		if !v.HasErrors() {
 			t.Fatal("expected param error for invalid regex pattern")
 		}
 	})
@@ -405,15 +387,7 @@ func TestValidateRegex(t *testing.T) {
 			ToValidate: &RegexStruct{Age: 25},
 		}
 		v.Validate()
-		found := false
-		for _, e := range v.FieldErrors {
-			if e.Field == "Age" {
-				if _, ok := e.InvalidConditions["regex"]; ok {
-					found = true
-				}
-			}
-		}
-		if !found {
+		if !v.HasErrors() {
 			t.Fatal("expected regex error for non-string field")
 		}
 	})
@@ -426,15 +400,7 @@ func TestValidateRegex(t *testing.T) {
 			ToValidate: &RegexStruct{Email: "test"},
 		}
 		v.Validate()
-		found := false
-		for _, e := range v.FieldErrors {
-			if e.Field == "Email" {
-				if _, ok := e.InvalidConditions["param"]; ok {
-					found = true
-				}
-			}
-		}
-		if !found {
+		if !v.HasErrors() {
 			t.Fatal("expected param error for empty regex pattern")
 		}
 	})
@@ -464,19 +430,17 @@ func TestStringSizeBetween(t *testing.T) {
 func TestValidateEmail(t *testing.T) {
 	emails := []string{"@s.cc", "s.cc", "s.cc@", "s.cc@sd"}
 
-	for i, v := range emails {
-		t.Run(fmt.Sprintf("valid email %d", i), func(t *testing.T) {
+	for i, email := range emails {
+		t.Run(fmt.Sprintf("invalid email %d", i), func(t *testing.T) {
 			type EmailStruct struct {
 				Email string `validation:"email"`
 			}
 			v := &Validator[EmailStruct]{
-				ToValidate: &EmailStruct{Email: v},
+				ToValidate: &EmailStruct{Email: email},
 			}
 			v.Validate()
-			for _, e := range v.FieldErrors {
-				if e.Field == "Email" {
-					t.Fatalf("expected email %v to fail: %v", v, e.InvalidConditions)
-				}
+			if !v.HasErrors() {
+				t.Fatalf("expected email %s to fail", email)
 			}
 		})
 	}

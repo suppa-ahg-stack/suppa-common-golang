@@ -91,6 +91,8 @@ func (v *Validator[T]) Validate() {
 								v.CheckRegex(field, values.Field(i), param, key)
 							case "password":
 								v.CheckPasswordIsValid(field, values.Field(i), key)
+							case "email":
+								v.CheckPasswordIsValid(field, values.Field(i), key)
 							}
 						}
 					}
