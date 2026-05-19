@@ -45,10 +45,10 @@ type Options struct {
 }
 
 type PageRoute struct {
-	ContentFunc    func() templ.Component
-	TargetSelector string
-	RequiresAuth   bool
-	RequiresRoles  []string
+	PageContentFunc func() templ.Component
+	TargetSelector  string
+	RequiresAuth    bool
+	RequiresRoles   []string
 }
 
 // ServerUtil holds the configuration and provides methods to create and run an HTTP server.
